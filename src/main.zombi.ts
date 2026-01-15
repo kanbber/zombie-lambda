@@ -2,13 +2,13 @@ type FuncCals = {
   name: string;
   wait: number;
   isFailing?: boolean;
-}
+};
 type Event = {
   elements: FuncCals[];
-}
+};
 
 function delay(ms: number) {
-  return new Promise(res => setTimeout(res, ms));
+  return new Promise((res) => setTimeout(res, ms));
 }
 
 const zombieFunc = async (input: FuncCals): Promise<void> => {
@@ -22,6 +22,6 @@ const zombieFunc = async (input: FuncCals): Promise<void> => {
 };
 
 export async function handler(event: Event): Promise<void> {
-  const res = await Promise.all(event.elements.map(ele => zombieFunc(ele)));
+  const res = await Promise.all(event.elements.map((ele) => zombieFunc(ele)));
   console.log(res);
 }

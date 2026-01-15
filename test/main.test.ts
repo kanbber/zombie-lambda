@@ -58,9 +58,7 @@ describe('Lambda Zombie Stack', () => {
       ManagedPolicyArns: Match.arrayWith([
         Match.objectLike({
           'Fn::Join': Match.arrayWith([
-            Match.arrayWith([
-              Match.stringLikeRegexp('.*AWSLambdaBasicExecutionRole'),
-            ]),
+            Match.arrayWith([Match.stringLikeRegexp('.*AWSLambdaBasicExecutionRole')]),
           ]),
         }),
       ]),
