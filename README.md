@@ -1,42 +1,71 @@
 # Lambda Zombie
 
-An lambda invoke is always executed in an execution environment. If an execution is interrupted, due to, for example, an exception, zombie code executions can happen.  
+A demonstration of "zombie" code execution in AWS Lambda - where async operations from a failed invocation continue running and appear in logs of subsequent invocations.
 
-## init
+## What is a Lambda Zombie?
 
-`yarn deploy`
-`yarn watch`
+AWS Lambda reuses execution environments across invocations for performance. When a Lambda handler fails while async operations are still running, those operations can continue executing in the background. When the environment is reused, these "zombie" operations complete and log with the **previous request ID**, creating confusing mixed logs.
 
-## execute examples
+## How It Works
 
-1. `aws lambda invoke --function-name zombi --cli-binary-format raw-in-base64-out --payload file://examples/errorEx.json res`
-2. `aws lambda invoke --function-name zombi --cli-binary-format raw-in-base64-out --payload file://nextEx.json res` 
+This project demonstrates the issue:
 
-## Result
+1. **First invocation** starts 3 parallel async operations (Promise.all):
+   - `kaput` - fails after 500ms → handler throws error
+   - `Wo ist er hin?` - completes after 1500ms (still running when handler fails!)
+   - `geht durch` - completes after 200ms
+
+2. **Second invocation** (82 seconds later) reuses the same execution environment
+   - The zombie `Wo ist er hin?` from the first invocation completes
+   - Logs show the OLD request ID mixed with the new one
+
+## Quick Start
+
+```bash
+# Deploy the Lambda function
+yarn deploy
+
+# Trigger zombie behavior
+aws lambda invoke --function-name zombi \
+  --cli-binary-format raw-in-base64-out \
+  --payload file://examples/errorEx.json res
+
+# Invoke again to see zombie logs (wait a few seconds)
+aws lambda invoke --function-name zombi \
+  --cli-binary-format raw-in-base64-out \
+  --payload file://examples/nextEx.json res
+```
+
+## The Zombie in Action
+
+Look at line 10 in the output below - it shows request ID `c6988688` (from invocation #1) completing **during** invocation #2 (request ID `c03b4b5b`):
 
 ```
-[/aws/lambda/zombi] 2:09:29 PM INIT_START Runtime Version: nodejs:14.v29        Runtime Version ARN: arn:aws:lambda:eu-central-1::runtime:be6b7a67cb4533b2e602f284c4e41058155b081b5879c71929b33e71c124b81d
-[/aws/lambda/zombi] 2:09:29 PM START RequestId: c6988688-6c8e-40bc-9414-9421679b55ef Version: $LATEST
-[/aws/lambda/zombi] 2:09:29 PM 2023-03-17T13:09:29.304Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    before 'kaput'
-[/aws/lambda/zombi] 2:09:29 PM 2023-03-17T13:09:29.305Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    before 'Wo ist er hin?'
-[/aws/lambda/zombi] 2:09:29 PM 2023-03-17T13:09:29.305Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    before 'geht durch'
-[/aws/lambda/zombi] 2:09:29 PM 2023-03-17T13:09:29.505Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    'geht durch' done
-[/aws/lambda/zombi] 2:09:29 PM 2023-03-17T13:09:29.805Z c6988688-6c8e-40bc-9414-9421679b55ef    ERROR   Invoke Error    {"errorType":"Error","errorMessage":"zombi","stack":["Error: zombi","    at zombieFunc (/var/task/index.js:33:11)","    at async Promise.all (index 0)","    at async Runtime.handler (/var/task/index.js:39:15)"]}
-[/aws/lambda/zombi] 2:09:29 PM END RequestId: c6988688-6c8e-40bc-9414-9421679b55ef
-[/aws/lambda/zombi] 2:09:29 PM REPORT RequestId: c6988688-6c8e-40bc-9414-9421679b55ef   Duration: 506.11 ms     Billed Duration: 507 ms Memory Size: 128 MB     Max Memory Used: 57 MB  Init Duration: 163.92 ms
-[/aws/lambda/zombi] 2:10:51 PM START RequestId: c03b4b5b-f80b-45ab-b9d1-b67033a2ec34 Version: $LATEST
-[/aws/lambda/zombi] 2:10:51 PM 2023-03-17T13:10:51.758Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    'Wo ist er hin?' done
-[/aws/lambda/zombi] 2:10:51 PM 2023-03-17T13:10:51.807Z c03b4b5b-f80b-45ab-b9d1-b67033a2ec34    INFO    before 'Neu 1'
-[/aws/lambda/zombi] 2:10:51 PM 2023-03-17T13:10:51.807Z c03b4b5b-f80b-45ab-b9d1-b67033a2ec34    INFO    before 'Neu lahm'
-[/aws/lambda/zombi] 2:10:52 PM 2023-03-17T13:10:52.428Z c03b4b5b-f80b-45ab-b9d1-b67033a2ec34    INFO    'Neu lahm' done
-[/aws/lambda/zombi] 2:10:53 PM 2023-03-17T13:10:53.308Z c03b4b5b-f80b-45ab-b9d1-b67033a2ec34    INFO    'Neu 1' done
-[/aws/lambda/zombi] 2:10:53 PM 2023-03-17T13:10:53.310Z c03b4b5b-f80b-45ab-b9d1-b67033a2ec34    INFO    [ undefined, undefined ]
-[/aws/lambda/zombi] 2:10:53 PM END RequestId: c03b4b5b-f80b-45ab-b9d1-b67033a2ec34
-[/aws/lambda/zombi] 2:10:53 PM REPORT RequestId: c03b4b5b-f80b-45ab-b9d1-b67033a2ec34   Duration: 1570.14 ms    Billed Duration: 1571 ms        Memory Size: 128 MB     Max Memory Used: 58 MB
+# First invocation - fails after 506ms
+START RequestId: c6988688-6c8e-40bc-9414-9421679b55ef
+INFO before 'kaput'
+INFO before 'Wo ist er hin?'
+INFO before 'geht durch'
+INFO 'geht durch' done
+ERROR Invoke Error
+END RequestId: c6988688-6c8e-40bc-9421679b55ef
+
+# Second invocation - 82 seconds later
+START RequestId: c03b4b5b-f80b-45ab-b9d1-b67033a2ec34
+INFO c6988688-6c8e-40bc-9421679b55ef 'Wo ist er hin?' done  ← ZOMBIE!
+INFO c03b4b5b-f80b-45ab-b9d1-b67033a2ec34 before 'Neu 1'
+INFO c03b4b5b-f80b-45ab-b9d1-b67033a2ec34 before 'Neu lahm'
+INFO c03b4b5b-f80b-45ab-b9d1-b67033a2ec34 'Neu lahm' done
+INFO c03b4b5b-f80b-45ab-b9d1-b67033a2ec34 'Neu 1' done
+END RequestId: c03b4b5b-f80b-45ab-b9d1-b67033a2ec34
 ```
 
-The scary|interessing part is this: 
+## Key Takeaway
 
-``` 
-[/aws/lambda/zombi] 2:10:51 PM 2023-03-17T13:10:51.758Z c6988688-6c8e-40bc-9414-9421679b55ef    INFO    'Wo ist er hin?' done
-```
+Always ensure proper cleanup and error handling in Lambda functions. Background promises can outlive your handler, especially when using `Promise.all()` with operations that have different completion times.
+
+## Tech Stack
+
+- AWS CDK 2.1.0 - Infrastructure as Code
+- TypeScript - Strict mode
+- AWS Lambda - Node.js 14 runtime
