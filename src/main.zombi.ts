@@ -1,7 +1,7 @@
 type FuncCals = {
-  name: string,
-  wait: number,
-  isFailing?: boolean,
+  name: string;
+  wait: number;
+  isFailing?: boolean;
 }
 type Event = {
   elements: FuncCals[];
@@ -19,7 +19,7 @@ const zombieFunc = async (input: FuncCals): Promise<void> => {
   } else {
     console.log(`'${input.name}' done`);
   }
-}
+};
 
 export async function handler(event: Event): Promise<void> {
   const res = await Promise.all(event.elements.map(ele => zombieFunc(ele)));

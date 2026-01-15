@@ -1,4 +1,5 @@
-import { App, Stack, StackProps, aws_lambda_nodejs as lambda } from 'aws-cdk-lib';
+import { App, Stack, StackProps, aws_lambda_nodejs as lambda, Duration } from 'aws-cdk-lib';
+import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 
 export class MyStack extends Stack {
@@ -6,6 +7,8 @@ export class MyStack extends Stack {
     super(scope, id, props);
     new lambda.NodejsFunction(this, 'zombi', {
       functionName: 'zombi',
+      runtime: Runtime.NODEJS_22_X,
+      timeout: Duration.seconds(30),
     });
   }
 }

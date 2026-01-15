@@ -66,6 +66,7 @@ Always ensure proper cleanup and error handling in Lambda functions. Background 
 
 ## Tech Stack
 
-- AWS CDK 2.1.0 - Infrastructure as Code
-- TypeScript - Strict mode
-- AWS Lambda - Node.js 14 runtime
+- AWS CDK 2.170.0 - Infrastructure as Code
+- TypeScript 5.x - Strict mode with ES2023
+- AWS Lambda - Node.js 22.x runtime
+- Node.js 22+ - Development environment
